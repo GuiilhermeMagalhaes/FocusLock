@@ -1,4 +1,5 @@
 package com.example.focuslock
+
 import android.content.Context
 import android.hardware.Sensor
 import android.hardware.SensorEvent
@@ -32,6 +33,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlin.math.sqrt
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -95,47 +97,73 @@ fun EcraConfiguracao(onIniciarClick: () -> Unit) {
 
 @Composable
 fun EcraAtivo(onCancelarClick: () -> Unit) {
-    // 1. Obter o Contexto e os Serviços do Android
     val context = LocalContext.current
 
-    // 2. Variável de estado para saber se o telemóvel está virado para a mesa (tapado)
+    // Estados dos sensores
     var isEcraTapado by remember { mutableStateOf(false) }
+    var isMovimentoBrusco by remember { mutableStateOf(false) }
 
-    // 3. Efeito que liga e desliga o sensor automaticamente
     DisposableEffect(Unit) {
         val sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
         val proximitySensor = sensorManager.getDefaultSensor(Sensor.TYPE_PROXIMITY)
+        val accelerometerSensor = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
 
         val listener = object : SensorEventListener {
             override fun onSensorChanged(event: SensorEvent) {
+                // 1. Lógica do Sensor de Proximidade
                 if (event.sensor.type == Sensor.TYPE_PROXIMITY) {
-                    // O sensor de proximidade mede em centímetros.
-                    // Se o valor for menor que o máximo do sensor, significa que está tapado.
                     val distancia = event.values[0]
                     isEcraTapado = distancia < (proximitySensor?.maximumRange ?: 5f)
+
+                    // Se o ecrã voltar a ser tapado, perdoamos o movimento brusco anterior
+                    if (isEcraTapado) {
+                        isMovimentoBrusco = false
+                    }
+                }
+
+                // 2. Lógica do Acelerómetro
+                if (event.sensor.type == Sensor.TYPE_ACCELEROMETER) {
+                    val x = event.values[0]
+                    val y = event.values[1]
+                    val z = event.values[2]
+
+                    // Calcular a magnitude da aceleração
+                    val aceleracao = sqrt((x * x + y * y + z * z).toDouble()).toFloat()
+
+                    // A gravidade normal é ~9.81. Se for maior que 13, houve um abanão forte!
+                    if (aceleracao > 13f) {
+                        isMovimentoBrusco = true
+                    }
                 }
             }
             override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
         }
 
-        // Inicia a escuta do sensor
+        // Registar ambos os sensores
         sensorManager.registerListener(listener, proximitySensor, SensorManager.SENSOR_DELAY_NORMAL)
+        sensorManager.registerListener(listener, accelerometerSensor, SensorManager.SENSOR_DELAY_NORMAL)
 
-        // Limpa (desliga) o sensor quando saímos deste ecrã
         onDispose {
             sensorManager.unregisterListener(listener)
         }
     }
 
-    // 4. Mudança de Design Visual baseada no sensor
-    val corFundo = if (isEcraTapado) Color(0xFF0D47A1) else Color(0xFF121212) // Azul se tapado, Escuro normal se destapado
-    val corTexto = if (isEcraTapado) Color.White else Color(0xFFF44336) // Branco se tapado, Vermelho se destapado
-    val textoEstado = if (isEcraTapado) "Modo de Foco Ativo!\nContinua assim." else "Sessão Interrompida!\nVire o ecrã para baixo."
+    // Lógica para decidir o que mostrar no ecrã
+    val estaTudoCorreto = isEcraTapado && !isMovimentoBrusco
+
+    val corFundo = if (estaTudoCorreto) Color(0xFF0D47A1) else Color(0xFF121212)
+    val corTexto = if (estaTudoCorreto) Color.White else Color(0xFFF44336)
+
+    val textoEstado = when {
+        isMovimentoBrusco -> "Aviso!\nMovimento brusco detetado!"
+        !isEcraTapado -> "Sessão Interrompida!\nVire o ecrã para baixo."
+        else -> "Modo de Foco Ativo!\nContinua assim."
+    }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(corFundo) // O fundo muda aqui
+            .background(corFundo)
             .padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
