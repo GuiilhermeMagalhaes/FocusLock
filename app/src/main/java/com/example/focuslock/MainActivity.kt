@@ -51,9 +51,10 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 import kotlin.math.sqrt
 
-// 1. NOVO ESTADO: CONCLUIDO
+// 1. Estados da sessão
 enum class EstadoSessao { AGUARDAR, FOCO, INTERROMPIDO, CONCLUIDO }
 
+// 2. Navegação
 enum class NomeEcra { CONFIGURACAO, ATIVO, ESTATISTICAS }
 
 class MainActivity : ComponentActivity() {
@@ -247,8 +248,8 @@ fun EcraAtivo(tempoInicialMinutos: Int, somSelecionado: String, onCancelarClick:
     var isEcraTapado by remember { mutableStateOf(false) }
     var isMovimentoBrusco by remember { mutableStateOf(false) }
 
-    // ⚠️ ATENÇÃO: Está a 5 segundos para testes!
-    val tempoTotalSegundos = 5
+    // RESTAURADO PARA OS MINUTOS REAIS DA APLICAÇÃO!
+    val tempoTotalSegundos = tempoInicialMinutos * 60
     var tempoRestanteSegundos by remember { mutableStateOf(tempoTotalSegundos) }
 
     var somFundoPlayer by remember { mutableStateOf<MediaPlayer?>(null) }
@@ -343,7 +344,6 @@ fun EcraAtivo(tempoInicialMinutos: Int, somSelecionado: String, onCancelarClick:
         }
     }
 
-    // GESTÃO DE ÁUDIO À PROVA DE BALA (Sem pauses redundantes)
     LaunchedEffect(estadoSessao) {
         when (estadoSessao) {
             EstadoSessao.AGUARDAR -> {
@@ -358,7 +358,7 @@ fun EcraAtivo(tempoInicialMinutos: Int, somSelecionado: String, onCancelarClick:
             }
             EstadoSessao.INTERROMPIDO -> {
                 somFundoPlayer?.pause()
-                alarmePlayer?.start() // Apenas START! Direto e sem engasgos.
+                alarmePlayer?.start()
             }
             EstadoSessao.CONCLUIDO -> {
                 somFundoPlayer?.pause()
